@@ -91,7 +91,7 @@ export default function Recorder() {
                 <audio src={recordedMedia} controls className="w-full" />
               )}
               <Button className="mt-2 w-full" asChild>
-                <a href={recordedMedia} download={`recording.${recordingType === 'screen' ? 'webm' : 'wav'}`}>
+                <a href={recordedMedia} download={`recording.${recordingType === 'screen' ? 'mp4' : 'wav'}`}>
                   Download Recording
                 </a>
               </Button>
