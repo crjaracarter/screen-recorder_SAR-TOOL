@@ -4,8 +4,6 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Toast } from "@/components/ui/toast"
-import { Timer } from "@/components/ui/timer"
 import { useToast } from "@/hooks/use-toast"
 
 export default function Recorder() {
