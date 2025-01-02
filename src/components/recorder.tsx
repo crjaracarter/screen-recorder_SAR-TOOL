@@ -108,9 +108,9 @@ export default function Recorder() {
     <Card className="w-full max-w-xl mx-auto shadow-lg hover:shadow-xl transition-shadow duration-300">
       <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-t-lg">
         <CardTitle className="text-2xl font-bold">Grabador de Pantalla y audio</CardTitle>
-        <CardDescription className="text-gray-100">
-          Graba tu pantalla o audio con alta calidad
-        </CardDescription>
+        {/* <CardDescription className="text-gray-100">
+          Graba tu pantalla o audio
+        </CardDescription> */}
       </CardHeader>
       <CardContent className="p-6 space-y-6">
         <Select
