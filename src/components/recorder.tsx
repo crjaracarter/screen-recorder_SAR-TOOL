@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function Recorder() {
   const [isRecording, setIsRecording] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   const [recordingType, setRecordingType] = useState('screen')
   const [error, setError] = useState<string | null>(null)
   const [duration, setDuration] = useState(0)
@@ -65,7 +66,11 @@ export default function Recorder() {
 
       streamRef.current = stream
       mediaRecorder.current = new MediaRecorder(stream, {
-        mimeType: recordingType === 'screen' ? 'video/webm;codecs=vp8,opus' : 'audio/webm;codecs=opus'
+        mimeType: recordingType === 'screen' 
+          ? 'video/webm;codecs=vp8,opus' 
+          : 'audio/webm;codecs=opus',
+        videoBitsPerSecond: 2500000,
+        audioBitsPerSecond: 128000
       })
 
       mediaRecorder.current.ondataavailable = (event) => {
@@ -74,18 +79,33 @@ export default function Recorder() {
         }
       }
 
-      mediaRecorder.current.onstop = () => {
-        setTimeout(() => {
+      mediaRecorder.current.onstop = async () => {
+        setIsProcessing(true)
+        try {
           const blob = new Blob(chunksRef.current, {
             type: recordingType === 'screen' ? 'video/webm' : 'audio/webm'
           })
-          const url = URL.createObjectURL(blob)
+          
+          // Procesar el blob antes de crear la URL
+          const arrayBuffer = await blob.arrayBuffer()
+          const processedBlob = new Blob([arrayBuffer], { type: blob.type })
+          const url = URL.createObjectURL(processedBlob)
+          
           setRecordedMedia(url)
           stream.getTracks().forEach(track => track.stop())
-        }, 100)
+        } catch (err) {
+          console.error("Error processing recording:", err)
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Error al procesar la grabación"
+          })
+        } finally {
+          setIsProcessing(false)
+        }
       }
 
-      mediaRecorder.current.start(1000)
+      mediaRecorder.current.start(200)
       setIsRecording(true)
     } catch (err) {
       console.error("Error starting recording:", err)
@@ -108,9 +128,6 @@ export default function Recorder() {
     <Card className="w-full max-w-xl mx-auto shadow-lg hover:shadow-xl transition-shadow duration-300">
       <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-t-lg">
         <CardTitle className="text-2xl font-bold">Grabador de Pantalla y audio</CardTitle>
-        {/* <CardDescription className="text-gray-100">
-          Graba tu pantalla o audio
-        </CardDescription> */}
       </CardHeader>
       <CardContent className="p-6 space-y-6">
         <Select
@@ -157,7 +174,14 @@ export default function Recorder() {
           </div>
         )}
 
-        {recordedMedia && (
+        {isProcessing && (
+          <div className="text-center py-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+            <p className="mt-2">Procesando grabación...</p>
+          </div>
+        )}
+
+        {recordedMedia && !isProcessing && (
           <div className="mt-6 space-y-4">
             <div className="rounded-lg overflow-hidden border border-gray-200">
               {recordingType === 'screen' ? (

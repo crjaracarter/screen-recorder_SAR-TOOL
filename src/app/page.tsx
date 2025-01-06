@@ -19,9 +19,9 @@ export default function Home() {
             <div className="text-xs text-gray-500 flex justify-center items-center gap-2 flex-wrap">
               <span>Desarrollado por <a href="https://comadev.netlify.app/" target="_blank" rel="noopener noreferrer" className="hover:text-purple-500 transition-colors">Coma</a></span>
               <span>•</span>
-              <span>Asistido por Claude (Anthropic)</span>
+              <span>Mejorado con Claude (Anthropic)</span>
               <span>•</span>
-              <span>Potenciado por v0 (Vercel)</span>
+              <span>Idea base con v0 (Vercel)</span>
             </div>
           </div>
         </footer>
