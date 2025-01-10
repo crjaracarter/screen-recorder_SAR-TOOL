@@ -64,6 +64,15 @@ export default function VideoConverter() {
             return
         }
 
+        if (file.size > 2147483648) { // 2GB
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "El archivo es demasiado grande. Máximo 2GB."
+            })
+            return
+        }
+
         try {
             setIsConverting(true)
             setProgress(0)
@@ -73,18 +82,31 @@ export default function VideoConverter() {
             const inputFileName = `input-${Date.now()}.webm`
             const outputFileName = `output-${Date.now()}.mp4`
 
-            ffmpeg.FS('writeFile', inputFileName, await fetchFile(file))
+            toast({
+                title: "Procesando",
+                description: "La conversión puede tardar varios minutos para videos largos."
+            })
 
+            await ffmpeg.FS('writeFile', inputFileName, await fetchFile(file))
+
+            let lastProgress = 0
             ffmpeg.setProgress(({ ratio }) => {
                 const percentage = Math.round(ratio * 100)
-                setProgress(percentage < 0 ? 0 : percentage > 100 ? 100 : percentage)
+                if (percentage > lastProgress) {
+                    lastProgress = percentage
+                    setProgress(percentage < 0 ? 0 : percentage > 100 ? 100 : percentage)
+                }
             })
 
             await ffmpeg.run(
                 '-i', inputFileName,
                 '-c:v', 'libx264',
-                '-preset', 'fast',
-                '-crf', '22',
+                '-preset', 'medium',
+                '-crf', '23',
+                '-vsync', 'vfr',
+                '-movflags', '+faststart',
+                '-af', 'aresample=async=1',
+                '-max_muxing_queue_size', '9999',
                 '-c:a', 'aac',
                 '-b:a', '128k',
                 outputFileName
@@ -93,11 +115,9 @@ export default function VideoConverter() {
             const data = ffmpeg.FS('readFile', outputFileName)
             const blob = new Blob([new Uint8Array(data.buffer)], { type: 'video/mp4' })
 
-            // Limpiar archivos del sistema de archivos virtual
             ffmpeg.FS('unlink', inputFileName)
             ffmpeg.FS('unlink', outputFileName)
 
-            // Crear y descargar archivo
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
@@ -117,7 +137,7 @@ export default function VideoConverter() {
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "Error al convertir el video"
+                description: "Error al convertir el video. Prueba con un archivo más pequeño o de menor duración."
             })
         } finally {
             setIsConverting(false)
