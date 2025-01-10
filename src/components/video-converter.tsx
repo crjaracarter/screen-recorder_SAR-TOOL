@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
@@ -17,35 +17,51 @@ type FFmpegInstance = {
     setProgress: (progress: (progress: FFmpegProgress) => void) => void;
     run: (...args: string[]) => Promise<void>;
     load: () => Promise<void>;
+    isLoaded: () => boolean;
 };
 
 export default function VideoConverter() {
     const [isReady, setIsReady] = useState(false)
     const [isConverting, setIsConverting] = useState(false)
     const [progress, setProgress] = useState<number>(0)
+    const [ffmpegLoaded, setFfmpegLoaded] = useState(false)
     const { toast } = useToast()
     const inputRef = useRef<HTMLInputElement>(null)
     const ffmpegRef = useRef<FFmpegInstance | null>(null)
 
-    const initFFmpeg = async () => {
-        try {
-            const ffmpeg = await getFFmpeg() as FFmpegInstance
-            await ffmpeg.load()
-            ffmpegRef.current = ffmpeg
-            setIsReady(true)
-        } catch (error) {
-            console.error('Error inicializando FFmpeg:', error)
+    useEffect(() => {
+        const loadFFmpeg = async () => {
+            try {
+                if (!ffmpegLoaded && !ffmpegRef.current) {
+                    const ffmpeg = await getFFmpeg() as FFmpegInstance
+                    if (!ffmpeg.isLoaded()) {
+                        await ffmpeg.load()
+                    }
+                    ffmpegRef.current = ffmpeg
+                    setFfmpegLoaded(true)
+                    setIsReady(true)
+                }
+            } catch (error) {
+                console.error('Error inicializando FFmpeg:', error)
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Error al inicializar el convertidor"
+                })
+            }
+        }
+
+        loadFFmpeg()
+    }, [ffmpegLoaded, toast])
+
+    const convertToMp4 = async (file: File) => {
+        if (!ffmpegRef.current || !ffmpegLoaded) {
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "Error al inicializar el convertidor"
+                description: "El convertidor no está listo. Por favor, espera un momento."
             })
-        }
-    }
-
-    const convertToMp4 = async (file: File) => {
-        if (!ffmpegRef.current) {
-            await initFFmpeg()
+            return
         }
 
         try {
@@ -53,8 +69,6 @@ export default function VideoConverter() {
             setProgress(0)
 
             const ffmpeg = ffmpegRef.current
-            if (!ffmpeg) throw new Error('FFmpeg no está inicializado')
-
             const { name } = file
             const inputFileName = `input-${Date.now()}.webm`
             const outputFileName = `output-${Date.now()}.mp4`
@@ -79,11 +93,11 @@ export default function VideoConverter() {
             const data = ffmpeg.FS('readFile', outputFileName)
             const blob = new Blob([new Uint8Array(data.buffer)], { type: 'video/mp4' })
 
-            // Limpiar archivos
+            // Limpiar archivos del sistema de archivos virtual
             ffmpeg.FS('unlink', inputFileName)
             ffmpeg.FS('unlink', outputFileName)
 
-            // Descargar archivo
+            // Crear y descargar archivo
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
@@ -143,12 +157,14 @@ export default function VideoConverter() {
 
                 <Button
                     onClick={() => inputRef.current?.click()}
-                    disabled={isConverting}
+                    disabled={isConverting || !isReady}
                     className="w-full bg-blue-500 hover:bg-blue-600 text-white"
                 >
-                    {isConverting 
-                        ? `Convirtiendo... ${progress}%` 
-                        : 'Seleccionar archivo WebM'
+                    {!isReady
+                        ? "Inicializando..."
+                        : isConverting 
+                            ? `Convirtiendo... ${progress}%` 
+                            : 'Seleccionar archivo WebM'
                     }
                 </Button>
 
