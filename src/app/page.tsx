@@ -1,4 +1,5 @@
 import Recorder from '@/components/recorder'
+import VideoConverter from '@/components/video-converter'
 
 export default function Home() {
   return (
@@ -12,7 +13,12 @@ export default function Home() {
             Graba tu pantalla y audio
           </p>
         </header>
-        <Recorder />
+        
+        <div className="space-y-8">
+          <Recorder />
+          <VideoConverter />
+        </div>
+
         <footer className="mt-8 text-center text-muted-foreground text-sm">
           <div className="flex flex-col gap-2">
             <p>© 2025 <a href="https://comadev.netlify.app/" target="_blank" rel="noopener noreferrer" className="hover:text-purple-500 transition-colors">Coma</a>. Todos los derechos reservados.</p>
