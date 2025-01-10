@@ -22,7 +22,7 @@ interface ToastInstance extends ToastProps {
   action?: React.ReactNode;
 }
 
-export function Toaster({ className }: ToasterProps) {
+export function Toaster() {
   const { toasts } = useToast()
 
   return (
