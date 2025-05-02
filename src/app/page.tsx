@@ -1,5 +1,5 @@
 import Recorder from '@/components/recorder'
-import VideoConverter from '@/components/video-converter'
+// import VideoConverter from '@/components/video-converter'
 
 export default function Home() {
   return (
@@ -16,7 +16,7 @@ export default function Home() {
         
         <div className="space-y-8">
           <Recorder />
-          <VideoConverter />
+          {/* <VideoConverter /> */}
         </div>
 
         <footer className="mt-8 text-center text-muted-foreground text-sm">
