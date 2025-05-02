@@ -28,6 +28,8 @@ export default function Home() {
               <span>Mejorado con Claude (Anthropic)</span>
               <span>•</span>
               <span>Idea base con v0 (Vercel)</span>
+              <span>•</span>
+              <span>Versión 2.1 - 02/05/2025</span>
             </div>
           </div>
         </footer>

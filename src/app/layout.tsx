@@ -15,7 +15,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Screen Recorder Tool by Coma",
+  title: "Magic",
   description: "Grabador de pantalla y audio",
   icons: {
     icon: '/favicon.ico',

@@ -6,6 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 
+// Interfaz para extender MediaStream y permitir guardar las streams originales
+interface CombinedMediaStream extends MediaStream {
+  __originalStreams?: MediaStream[];
+}
+
 export default function Recorder() {
   const [isRecording, setIsRecording] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -13,7 +18,7 @@ export default function Recorder() {
   const [error, setError] = useState<string | null>(null)
   const [duration, setDuration] = useState(0)
   const mediaRecorder = useRef<MediaRecorder | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  const streamRef = useRef<CombinedMediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const [recordedMedia, setRecordedMedia] = useState<string | null>(null)
   const { toast } = useToast()
@@ -46,7 +51,8 @@ export default function Recorder() {
     chunksRef.current = []
 
     try {
-      let stream;
+      let stream: CombinedMediaStream;
+      
       if (recordingType === 'screen') {
         stream = await navigator.mediaDevices.getDisplayMedia({ 
           video: { 
@@ -54,24 +60,50 @@ export default function Recorder() {
             displaySurface: 'monitor'
           },
           audio: true 
-        })
+        }) as CombinedMediaStream;
+      } else if (recordingType === 'screen_mic') {
+        // Obtener tanto la captura de pantalla como el micrófono
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({ 
+          video: { 
+            frameRate: { ideal: 60 },
+            displaySurface: 'monitor'
+          },
+          audio: true 
+        });
+        
+        const micStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true
+          } 
+        });
+        
+        // Combinar las pistas de audio y video
+        const tracks = [
+          ...displayStream.getVideoTracks(),
+          ...displayStream.getAudioTracks(),
+          ...micStream.getAudioTracks()
+        ];
+        
+        stream = new MediaStream(tracks) as CombinedMediaStream;
+        
+        // Guardar referencia a las transmisiones originales para poder detenerlas después
+        stream.__originalStreams = [displayStream, micStream];
       } else {
         stream = await navigator.mediaDevices.getUserMedia({ 
           audio: {
             echoCancellation: true,
             noiseSuppression: true
           } 
-        })
+        }) as CombinedMediaStream;
       }
 
-      streamRef.current = stream
+      streamRef.current = stream;
       mediaRecorder.current = new MediaRecorder(stream, {
-        mimeType: recordingType === 'screen' 
-          ? 'video/webm;codecs=vp8,opus' 
-          : 'audio/webm;codecs=opus',
+        mimeType: recordingType === 'audio' ? 'audio/webm;codecs=opus' : 'video/webm;codecs=vp8,opus',
         videoBitsPerSecond: 2500000,
         audioBitsPerSecond: 128000
-      })
+      });
 
       mediaRecorder.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -83,7 +115,7 @@ export default function Recorder() {
         setIsProcessing(true)
         try {
           const blob = new Blob(chunksRef.current, {
-            type: recordingType === 'screen' ? 'video/webm' : 'audio/webm'
+            type: recordingType === 'audio' ? 'audio/webm' : 'video/webm'
           })
           
           // Procesar el blob antes de crear la URL
@@ -92,7 +124,15 @@ export default function Recorder() {
           const url = URL.createObjectURL(processedBlob)
           
           setRecordedMedia(url)
-          stream.getTracks().forEach(track => track.stop())
+          
+          // Detener todas las pistas
+          if (stream.__originalStreams?.length) {
+            stream.__originalStreams.forEach((originalStream: MediaStream) => {
+              originalStream.getTracks().forEach((track: MediaStreamTrack) => track.stop())
+            })
+          } else {
+            stream.getTracks().forEach(track => track.stop())
+          }
         } catch (err) {
           console.error("Error processing recording:", err)
           toast({
@@ -138,7 +178,8 @@ export default function Recorder() {
             <SelectValue placeholder="Selecciona tipo de grabación" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="screen">📺 Pantalla y Audio</SelectItem>
+            <SelectItem value="screen">📺 Pantalla y Audio del Sistema</SelectItem>
+            <SelectItem value="screen_mic">🎬 Pantalla + Audio + Micrófono</SelectItem>
             <SelectItem value="audio">🎤 Solo Micrófono</SelectItem>
           </SelectContent>
         </Select>
@@ -184,14 +225,14 @@ export default function Recorder() {
         {recordedMedia && !isProcessing && (
           <div className="mt-6 space-y-4">
             <div className="rounded-lg overflow-hidden border border-gray-200">
-              {recordingType === 'screen' ? (
-                <video src={recordedMedia} controls className="w-full" />
-              ) : (
+              {recordingType === 'audio' ? (
                 <audio src={recordedMedia} controls className="w-full" />
+              ) : (
+                <video src={recordedMedia} controls className="w-full" />
               )}
             </div>
             <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white" asChild>
-              <a href={recordedMedia} download={`recording-${new Date().toISOString()}.${recordingType === 'screen' ? 'webm' : 'webm'}`}>
+              <a href={recordedMedia} download={`recording-${new Date().toISOString()}.webm`}>
                 📥 Descargar Grabación
               </a>
             </Button>
