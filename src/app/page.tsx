@@ -29,7 +29,7 @@ export default function Home() {
               <span>•</span>
               <span>Idea base con v0 (Vercel)</span>
               <span>•</span>
-              <span>Versión 2.1 - 02/05/2025</span>
+              <span>Versión 3.0 - 02/05/2025</span>
             </div>
           </div>
         </footer>
