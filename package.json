@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbo",
+    "prebuild": "node scripts/download-ffmpeg.js",
+    "dev": "next dev",
     "build": "next build",
+    "postbuild": "node scripts/postbuild.js",
     "start": "next start",
     "lint": "next lint"
   },

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { getFFmpeg } from '@/lib/ffmpeg'
-import { fetchFile } from '@ffmpeg/ffmpeg'
+import { fetchFile } from '@ffmpeg/util'
 
 interface FFmpegProgress {
     ratio: number;
