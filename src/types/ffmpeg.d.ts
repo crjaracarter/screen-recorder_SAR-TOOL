@@ -5,6 +5,7 @@ declare module '@ffmpeg/ffmpeg' {
     readFile(name: string): Promise<Uint8Array>;
     exec(args: string[]): Promise<void>;
     deleteFile(name: string): Promise<void>;
+    on(event: 'progress', callback: (data: { progress: number }) => void): void;
   }
 }
 

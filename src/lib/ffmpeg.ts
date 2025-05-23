@@ -1,18 +1,20 @@
-import { createFFmpeg } from '@ffmpeg/ffmpeg';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
-const ffmpeg = createFFmpeg({
-  log: true,
-  corePath: 'https://unpkg.com/@ffmpeg/core@0.8.5/dist/ffmpeg-core.js'
-});
+let ffmpeg: FFmpeg | null = null;
 
-let loaded = false;
-
-export const getFFmpeg = async () => {
-  if (loaded) {
+export async function getFFmpeg() {
+  if (ffmpeg) {
     return ffmpeg;
   }
 
-  await ffmpeg.load();
-  loaded = true;
+  ffmpeg = new FFmpeg();
+
+  // Cargar los archivos necesarios de FFmpeg
+  await ffmpeg.load({
+    coreURL: await toBlobURL(`/ffmpeg-core.js`, 'text/javascript'),
+    wasmURL: await toBlobURL(`/ffmpeg-core.wasm`, 'application/wasm'),
+  });
+
   return ffmpeg;
-};
+}

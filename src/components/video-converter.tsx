@@ -6,19 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { getFFmpeg } from '@/lib/ffmpeg'
 import { fetchFile } from '@ffmpeg/util'
-
-interface FFmpegProgress {
-    ratio: number;
-    time?: number;
-}
-
-type FFmpegInstance = {
-    FS: (command: string, ...args: any[]) => any;
-    setProgress: (progress: (progress: FFmpegProgress) => void) => void;
-    run: (...args: string[]) => Promise<void>;
-    load: () => Promise<void>;
-    isLoaded: () => boolean;
-};
+import { FFmpeg } from '@ffmpeg/ffmpeg'
 
 export default function VideoConverter() {
     const [isReady, setIsReady] = useState(false)
@@ -27,16 +15,13 @@ export default function VideoConverter() {
     const [ffmpegLoaded, setFfmpegLoaded] = useState(false)
     const { toast } = useToast()
     const inputRef = useRef<HTMLInputElement>(null)
-    const ffmpegRef = useRef<FFmpegInstance | null>(null)
+    const ffmpegRef = useRef<FFmpeg | null>(null)
 
     useEffect(() => {
         const loadFFmpeg = async () => {
             try {
                 if (!ffmpegLoaded && !ffmpegRef.current) {
-                    const ffmpeg = await getFFmpeg() as FFmpegInstance
-                    if (!ffmpeg.isLoaded()) {
-                        await ffmpeg.load()
-                    }
+                    const ffmpeg = await getFFmpeg()
                     ffmpegRef.current = ffmpeg
                     setFfmpegLoaded(true)
                     setIsReady(true)
@@ -87,18 +72,17 @@ export default function VideoConverter() {
                 description: "La conversión puede tardar varios minutos para videos largos."
             })
 
-            await ffmpeg.FS('writeFile', inputFileName, await fetchFile(file))
+            // Escribir el archivo de entrada
+            await ffmpeg.writeFile(inputFileName, await fetchFile(file))
 
-            let lastProgress = 0
-            ffmpeg.setProgress(({ ratio }) => {
-                const percentage = Math.round(ratio * 100)
-                if (percentage > lastProgress) {
-                    lastProgress = percentage
-                    setProgress(percentage < 0 ? 0 : percentage > 100 ? 100 : percentage)
-                }
+            // Configurar el progreso
+            ffmpeg.on('progress', ({ progress }) => {
+                const percentage = Math.round(progress * 100)
+                setProgress(percentage < 0 ? 0 : percentage > 100 ? 100 : percentage)
             })
 
-            await ffmpeg.run(
+            // Ejecutar la conversión
+            await ffmpeg.exec([
                 '-i', inputFileName,
                 '-c:v', 'libx264',
                 '-preset', 'medium',
@@ -110,14 +94,17 @@ export default function VideoConverter() {
                 '-c:a', 'aac',
                 '-b:a', '128k',
                 outputFileName
-            )
+            ])
 
-            const data = ffmpeg.FS('readFile', outputFileName)
-            const blob = new Blob([new Uint8Array(data.buffer)], { type: 'video/mp4' })
+            // Leer el archivo de salida
+            const data = await ffmpeg.readFile(outputFileName)
+            const blob = new Blob([data], { type: 'video/mp4' })
 
-            ffmpeg.FS('unlink', inputFileName)
-            ffmpeg.FS('unlink', outputFileName)
+            // Limpiar archivos temporales
+            await ffmpeg.deleteFile(inputFileName)
+            await ffmpeg.deleteFile(outputFileName)
 
+            // Descargar el archivo
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
