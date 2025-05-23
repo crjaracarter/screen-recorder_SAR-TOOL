@@ -243,6 +243,10 @@ export default function Recorder() {
               '-c:v', 'libx264',
               '-preset', 'medium',
               '-crf', '23',
+              '-vsync', 'vfr',
+              '-movflags', '+faststart',
+              '-af', 'aresample=async=1',
+              '-max_muxing_queue_size', '9999',
               '-c:a', 'aac',
               '-b:a', '128k',
               outputFileName

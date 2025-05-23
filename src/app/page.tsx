@@ -16,7 +16,7 @@ export default function Home() {
         
         <div className="space-y-8">
           <Recorder />
-          {/* <VideoConverter /> */}
+          {/*<VideoConverter />*/}
         </div>
 
         <footer className="mt-8 text-center text-muted-foreground text-sm">
@@ -29,7 +29,7 @@ export default function Home() {
               <span>•</span>
               <span>Idea base con v0 (Vercel)</span>
               <span>•</span>
-              <span>Versión 3.2 - 23/05/2025</span>
+              <span>Versión 3.3 - 23/05/2025</span>
             </div>
           </div>
         </footer>
