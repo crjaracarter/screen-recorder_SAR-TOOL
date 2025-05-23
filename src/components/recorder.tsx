@@ -203,11 +203,27 @@ export default function Recorder() {
             type: recordingType === 'audio' ? 'audio/webm' : 'video/webm'
           })
           
-          // Procesar el blob antes de crear la URL
+          // Procesar el blob completamente antes de crear la URL
           const arrayBuffer = await blob.arrayBuffer()
-          const processedBlob = new Blob([arrayBuffer], { type: blob.type })
-          const url = URL.createObjectURL(processedBlob)
+          const processedBlob = new Blob([arrayBuffer], { 
+            type: recordingType === 'audio' ? 'audio/webm' : 'video/webm'
+          })
           
+          // Crear un elemento de video temporal para procesar el blob
+          if (recordingType !== 'audio') {
+            const tempVideo = document.createElement('video')
+            tempVideo.src = URL.createObjectURL(processedBlob)
+            
+            // Esperar a que el video esté completamente cargado
+            await new Promise((resolve) => {
+              tempVideo.onloadeddata = () => {
+                URL.revokeObjectURL(tempVideo.src)
+                resolve(null)
+              }
+            })
+          }
+          
+          const url = URL.createObjectURL(processedBlob)
           setRecordedMedia(url)
           
           // Detener todas las pistas
