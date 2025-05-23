@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Download, Check, Clock, FileVideo, Mic } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { FFmpeg } from '@ffmpeg/ffmpeg'
+import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
 // Interfaz para extender MediaStream y permitir guardar las streams originales
 interface CombinedMediaStream extends MediaStream {
@@ -42,6 +44,8 @@ export default function Recorder() {
   const [recordingHistory, setRecordingHistory] = useState<RecordingHistoryItem[]>([])
   const [showHistoryDialog, setShowHistoryDialog] = useState(false)
   const [currentRecordingId, setCurrentRecordingId] = useState<string | null>(null)
+  const ffmpegRef = useRef<FFmpeg | null>(null)
+  const [isFFmpegLoaded, setIsFFmpegLoaded] = useState(false)
 
   // Cargar historial de localStorage al iniciar
   useEffect(() => {
@@ -114,6 +118,33 @@ export default function Recorder() {
     }
   }, [isRecording, recordedMedia, isDownloaded])
 
+  // Inicializar FFmpeg
+  useEffect(() => {
+    const loadFFmpeg = async () => {
+      try {
+        const ffmpeg = new FFmpeg()
+        ffmpegRef.current = ffmpeg
+
+        // Cargar los archivos necesarios de FFmpeg
+        await ffmpeg.load({
+          coreURL: await toBlobURL(`/ffmpeg-core.js`, 'text/javascript'),
+          wasmURL: await toBlobURL(`/ffmpeg-core.wasm`, 'application/wasm'),
+        })
+
+        setIsFFmpegLoaded(true)
+      } catch (error) {
+        console.error('Error loading FFmpeg:', error)
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Error al cargar el procesador de video"
+        })
+      }
+    }
+
+    loadFFmpeg()
+  }, [toast])
+
   const startRecording = useCallback(async () => {
     setError(null)
     setRecordedMedia(null)
@@ -129,25 +160,22 @@ export default function Recorder() {
       if (recordingType === 'screen') {
         stream = await navigator.mediaDevices.getDisplayMedia({ 
           video: { 
-            frameRate: { ideal: 60 },
+            frameRate: { ideal: 30 },
             displaySurface: 'monitor'
           },
           audio: true 
         }) as CombinedMediaStream;
         
-        // Verificar si tiene pistas de audio
         setHasAudio(stream.getAudioTracks().length > 0)
       } else if (recordingType === 'screen_mic') {
-        // Obtener tanto la captura de pantalla como el micrófono
         const displayStream = await navigator.mediaDevices.getDisplayMedia({ 
           video: { 
-            frameRate: { ideal: 60 },
+            frameRate: { ideal: 30 },
             displaySurface: 'monitor'
           },
           audio: true 
         });
         
-        // Verificar si tiene audio del sistema
         setHasAudio(displayStream.getAudioTracks().length > 0)
         
         const micStream = await navigator.mediaDevices.getUserMedia({ 
@@ -157,10 +185,8 @@ export default function Recorder() {
           } 
         });
         
-        // Verificar si tiene micrófono
         setHasMic(micStream.getAudioTracks().length > 0)
         
-        // Combinar las pistas de audio y video
         const tracks = [
           ...displayStream.getVideoTracks(),
           ...displayStream.getAudioTracks(),
@@ -168,8 +194,6 @@ export default function Recorder() {
         ];
         
         stream = new MediaStream(tracks) as CombinedMediaStream;
-        
-        // Guardar referencia a las transmisiones originales para poder detenerlas después
         stream.__originalStreams = [displayStream, micStream];
       } else {
         stream = await navigator.mediaDevices.getUserMedia({ 
@@ -179,14 +203,13 @@ export default function Recorder() {
           } 
         }) as CombinedMediaStream;
         
-        // Verificar si tiene micrófono
         setHasMic(stream.getAudioTracks().length > 0)
       }
 
       streamRef.current = stream;
       mediaRecorder.current = new MediaRecorder(stream, {
-        mimeType: recordingType === 'audio' ? 'audio/webm;codecs=opus' : 'video/webm;codecs=vp8,opus',
-        videoBitsPerSecond: 2500000,
+        mimeType: recordingType === 'audio' ? 'audio/webm;codecs=opus' : 'video/webm;codecs=vp9,opus',
+        videoBitsPerSecond: 5000000,
         audioBitsPerSecond: 128000
       });
 
@@ -202,30 +225,44 @@ export default function Recorder() {
           const blob = new Blob(chunksRef.current, {
             type: recordingType === 'audio' ? 'audio/webm' : 'video/webm'
           })
-          
-          // Procesar el blob completamente antes de crear la URL
-          const arrayBuffer = await blob.arrayBuffer()
-          const processedBlob = new Blob([arrayBuffer], { 
-            type: recordingType === 'audio' ? 'audio/webm' : 'video/webm'
-          })
-          
-          // Crear un elemento de video temporal para procesar el blob
-          if (recordingType !== 'audio') {
-            const tempVideo = document.createElement('video')
-            tempVideo.src = URL.createObjectURL(processedBlob)
-            
-            // Esperar a que el video esté completamente cargado
-            await new Promise((resolve) => {
-              tempVideo.onloadeddata = () => {
-                URL.revokeObjectURL(tempVideo.src)
-                resolve(null)
-              }
-            })
+
+          let finalUrl: string;
+
+          if (recordingType !== 'audio' && isFFmpegLoaded && ffmpegRef.current) {
+            // Convertir WebM a MP4 usando FFmpeg
+            const ffmpeg = ffmpegRef.current
+            const inputFileName = 'input.webm'
+            const outputFileName = 'output.mp4'
+
+            // Escribir el archivo de entrada
+            await ffmpeg.writeFile(inputFileName, await fetchFile(blob))
+
+            // Ejecutar la conversión
+            await ffmpeg.exec([
+              '-i', inputFileName,
+              '-c:v', 'libx264',
+              '-preset', 'medium',
+              '-crf', '23',
+              '-c:a', 'aac',
+              '-b:a', '128k',
+              outputFileName
+            ])
+
+            // Leer el archivo de salida
+            const data = await ffmpeg.readFile(outputFileName)
+            const processedBlob = new Blob([data], { type: 'video/mp4' })
+            finalUrl = URL.createObjectURL(processedBlob)
+
+            // Limpiar archivos temporales
+            await ffmpeg.deleteFile(inputFileName)
+            await ffmpeg.deleteFile(outputFileName)
+          } else {
+            // Para audio o si FFmpeg no está disponible, usar el blob original
+            finalUrl = URL.createObjectURL(blob)
           }
-          
-          const url = URL.createObjectURL(processedBlob)
-          setRecordedMedia(url)
-          
+
+          setRecordedMedia(finalUrl)
+
           // Detener todas las pistas
           if (stream.__originalStreams?.length) {
             stream.__originalStreams.forEach((originalStream: MediaStream) => {
@@ -234,21 +271,21 @@ export default function Recorder() {
           } else {
             stream.getTracks().forEach(track => track.stop())
           }
-          
+
           // Generar ID único para esta grabación
           const newRecordingId = `rec_${Date.now()}`
           setCurrentRecordingId(newRecordingId)
-          
+
           // Añadir al historial
           const newHistoryItem: RecordingHistoryItem = {
             id: newRecordingId,
             date: new Date(),
             type: recordingType,
             duration: duration,
-            url: url,
+            url: finalUrl,
             downloaded: false
           }
-          
+
           setRecordingHistory(prev => [newHistoryItem, ...prev])
         } catch (err) {
           console.error("Error processing recording:", err)
@@ -262,7 +299,7 @@ export default function Recorder() {
         }
       }
 
-      mediaRecorder.current.start(200)
+      mediaRecorder.current.start(1000) // Aumentar el intervalo para chunks más grandes
       setIsRecording(true)
     } catch (err) {
       console.error("Error starting recording:", err)
@@ -272,7 +309,7 @@ export default function Recorder() {
         description: err instanceof Error ? err.message : 'Error al iniciar la grabación'
       })
     }
-  }, [recordingType, toast, duration])
+  }, [recordingType, toast, duration, isFFmpegLoaded])
 
   const stopRecording = useCallback(() => {
     if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
@@ -283,10 +320,8 @@ export default function Recorder() {
   
   const handleDownload = useCallback(() => {
     if (recordedMedia && currentRecordingId) {
-      // Marcar como descargado
       setIsDownloaded(true)
       
-      // Actualizar el historial
       setRecordingHistory(prev => 
         prev.map(item => 
           item.id === currentRecordingId 
@@ -295,7 +330,6 @@ export default function Recorder() {
         )
       )
       
-      // Mostrar toast de éxito
       toast({
         title: "¡Grabación descargada!",
         description: "Tu grabación se ha descargado correctamente.",
